@@ -15,6 +15,7 @@ let searchInputEl;
 let filterStatusEl;
 let itemsListEl;
 let messageEl;
+let autoLaunchCheckboxEl;
 
 function safeParseJson(value, fallback) {
   if (typeof value !== 'string' || !value.trim()) {
@@ -399,6 +400,38 @@ function setupKeyboardHandlers() {
   });
 }
 
+async function initAutoLaunchSetting() {
+  if (!autoLaunchCheckboxEl) {
+    return;
+  }
+
+  try {
+    const state = await window.launcher.getAutoLaunchEnabled();
+    autoLaunchCheckboxEl.checked = Boolean(state && state.enabled);
+  } catch (error) {
+    autoLaunchCheckboxEl.checked = false;
+    setMessage(`自動起動状態の取得に失敗: ${String(error)}`, 'error');
+  }
+
+  autoLaunchCheckboxEl.addEventListener('change', async () => {
+    const desired = Boolean(autoLaunchCheckboxEl.checked);
+    try {
+      const result = await window.launcher.setAutoLaunchEnabled(desired);
+      const enabled = Boolean(result && result.enabled);
+      autoLaunchCheckboxEl.checked = enabled;
+      if (result && result.ok) {
+        setMessage(`自動起動: ${enabled ? 'ON' : 'OFF'}`, 'success');
+      } else {
+        const detail = result && result.error ? ` (${result.error})` : '';
+        setMessage(`自動起動設定に失敗${detail}`, 'error');
+      }
+    } catch (error) {
+      autoLaunchCheckboxEl.checked = !desired;
+      setMessage(`自動起動設定に失敗: ${String(error)}`, 'error');
+    }
+  });
+}
+
 async function loadAppsCatalog() {
   try {
     const response = await window.launcher.getLauncherApps();
@@ -440,8 +473,9 @@ async function init() {
   filterStatusEl = document.getElementById('filterStatus');
   itemsListEl = document.getElementById('itemsList');
   messageEl = document.getElementById('message');
+  autoLaunchCheckboxEl = document.getElementById('autoLaunchCheckbox');
 
-  if (!searchInputEl || !filterStatusEl || !itemsListEl || !messageEl) {
+  if (!searchInputEl || !filterStatusEl || !itemsListEl || !messageEl || !autoLaunchCheckboxEl) {
     return;
   }
 
@@ -459,6 +493,7 @@ async function init() {
   });
 
   setupKeyboardHandlers();
+  await initAutoLaunchSetting();
 
   try {
     const state = await window.launcher.isPrivacyFilterVisible();

@@ -1,16 +1,11 @@
-# My Launcher
+# Graber
 
 Electronで動作する「アプリランチャー + 画面プライバシーフィルター」です。
 
-## セットアップ
+## 開発起動
 
 ```bash
 npm install
-```
-
-## 起動
-
-```bash
 npm start
 ```
 
@@ -19,28 +14,42 @@ npm start
 ## 操作
 
 - `Ctrl + Space` でランチャー表示/非表示
-- `Ctrl + Shift + Space` でもランチャー表示/非表示（代替ショートカット）
-- `Esc` はプライバシーフィルター解除専用（ランチャー表示/非表示には使わない）
-- ランチャーの検索欄でアプリ名を絞り込み（大文字小文字無視、スペース区切りAND検索）
+- `Ctrl + Shift + Space` でもランチャー表示/非表示（代替）
+- `Esc` はプライバシーフィルター解除専用
 - `↑` `↓` で選択移動、`Enter` で実行
-- アプリ起動後はランチャーを自動で非表示
-- プライバシーフィルター項目は常に先頭固定
-- スタートメニューのアプリ（.lnk）も自動検索対象
-- 最近使ったアプリと使用回数に応じて並び順を最適化
 
-## タスクトレイ
+## 自動起動（PC起動時）
 
-常駐時のトレイメニュー:
+ランチャー画面の「PC起動時に自動起動する」チェックボックスでON/OFFできます。
 
-- ランチャー表示
-- プライバシーフィルター ON/OFF
-- 終了
+- ON: `app.setLoginItemSettings({ openAtLogin: true, openAsHidden: true })`
+- OFF: `app.setLoginItemSettings({ openAtLogin: false })`
 
-トレイアイコンファイルがなくても、フォールバック画像で継続動作します。
+自動起動時もウィンドウは非表示で開始し、トレイ常駐 + `Ctrl + Space` で呼び出します。
 
-## ショートカット競合について
+## Windows向けビルド（Exe化）
 
-`Ctrl + Space` はIMEや他アプリと競合する場合があります。登録できない場合は `Ctrl + Shift + Space` を使ってください。
+```bash
+npm install
+npm run build
+npm run dist
+```
+
+- `npm run build`: Windows向け展開ファイルを作成（ディレクトリ出力）
+- `npm run dist`: Windows向けインストーラー/実行ファイルを作成
+- 生成物: `dist` フォルダ
+
+## アイコン設定
+
+Windowsアイコンは `build/icon.ico` を優先参照します（見つからない場合は `build/*.ico` / `build/*.png` を探索）。
+
+- アイコンを使う場合: `build/icon.ico` を配置
+- アイコン未配置でも `npm start` の開発実行は可能
+- ビルド時にアイコンを使う場合は `build/icon.ico` を用意してください
+
+## ショートカット競合
+
+`Ctrl + Space` はIMEや他アプリと競合する場合があります。登録失敗時は `Ctrl + Shift + Space` を利用してください。
 
 ## apps.json の書き方
 
@@ -62,6 +71,12 @@ npm start
   }
 ]
 ```
+
+## 自動起動がうまくいかない場合
+
+- 開発モードより、`npm run dist` で作成した実行ファイルの方が安定します
+- セキュリティソフトや会社ポリシーでログイン項目登録が制限されることがあります
+- 管理者権限実行や環境差で反映が遅れる場合は、一度OFF→ONし直してください
 
 ## 注意
 

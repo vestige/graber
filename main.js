@@ -3,12 +3,34 @@ const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
 
+const APP_DISPLAY_NAME = 'graber';
+
 let mainWindow = null;
 let filterWindows = [];
 let isFilterVisible = false;
 let tray = null;
 let isQuitting = false;
 let launcherAppsCatalog = [];
+
+function getRuntimeFilePath(relativePath) {
+  const candidates = [
+    path.join(app.getAppPath(), relativePath),
+    path.join(__dirname, relativePath),
+    path.join(process.resourcesPath, relativePath)
+  ];
+
+  for (const filePath of candidates) {
+    try {
+      if (fs.existsSync(filePath)) {
+        return filePath;
+      }
+    } catch (_error) {
+      // ignore
+    }
+  }
+
+  return '';
+}
 
 function normalizeAppName(name) {
   return String(name || '').trim().toLowerCase();
@@ -37,7 +59,7 @@ function sanitizeCatalogItem(item, source) {
 }
 
 async function readManualAppsFromJson() {
-  const filePath = path.join(__dirname, 'apps.json');
+  const filePath = getRuntimeFilePath('apps.json') || path.join(__dirname, 'apps.json');
   try {
     const raw = await fs.promises.readFile(filePath, 'utf8');
     const parsed = JSON.parse(raw);
@@ -51,6 +73,46 @@ async function readManualAppsFromJson() {
   } catch (error) {
     console.warn('Failed to read apps.json. Continuing with auto apps only.', error);
     return [];
+  }
+}
+
+function getAutoLaunchEnabled() {
+  try {
+    const settings = app.getLoginItemSettings();
+    return Boolean(settings && settings.openAtLogin);
+  } catch (error) {
+    console.warn('Failed to get login item settings:', error);
+    return false;
+  }
+}
+
+function setAutoLaunchEnabled(enabled) {
+  try {
+    const desired = Boolean(enabled);
+    if (process.platform === 'win32') {
+      app.setLoginItemSettings(
+        desired
+          ? {
+              openAtLogin: true,
+              openAsHidden: true
+            }
+          : {
+              openAtLogin: false
+            }
+      );
+    }
+
+    return {
+      ok: true,
+      enabled: getAutoLaunchEnabled()
+    };
+  } catch (error) {
+    console.error('Failed to set auto launch setting:', error);
+    return {
+      ok: false,
+      enabled: getAutoLaunchEnabled(),
+      error: error instanceof Error ? error.message : String(error)
+    };
   }
 }
 
@@ -174,7 +236,7 @@ function createMainWindow() {
     minHeight: 600,
     center: true,
     show: false,
-    title: 'My Launcher',
+    title: APP_DISPLAY_NAME,
     opacity: 0.9,
     autoHideMenuBar: true,
     webPreferences: {
@@ -526,9 +588,32 @@ function registerLauncherShortcuts() {
 
 function getTrayIcon() {
   const iconCandidates = [
-    path.join(__dirname, 'tray.png'),
-    path.join(__dirname, 'icon.png')
+    getRuntimeFilePath(path.join('build', 'icon.ico')),
+    getRuntimeFilePath(path.join('build', 'icon.png')),
+    getRuntimeFilePath('tray.png'),
+    getRuntimeFilePath('icon.png')
   ];
+
+  const runtimeBuildDirCandidates = [path.join(app.getAppPath(), 'build'), path.join(process.resourcesPath, 'build')];
+  for (const buildDir of runtimeBuildDirCandidates) {
+    try {
+      if (!buildDir || !fs.existsSync(buildDir)) {
+        continue;
+      }
+
+      const entries = fs.readdirSync(buildDir);
+      for (const entry of entries) {
+        const ext = path.extname(entry).toLowerCase();
+        if (ext !== '.ico' && ext !== '.png') {
+          continue;
+        }
+
+        iconCandidates.push(path.join(buildDir, entry));
+      }
+    } catch (error) {
+      console.warn('Failed to inspect build directory for tray icons:', buildDir, error);
+    }
+  }
 
   for (const iconPath of iconCandidates) {
     try {
@@ -536,8 +621,9 @@ function getTrayIcon() {
         continue;
       }
 
-      const image = nativeImage.createFromPath(iconPath);
+      const image = nativeImage.createFromPath(iconPath).resize({ width: 16, height: 16 });
       if (!image.isEmpty()) {
+        console.log('Tray icon loaded from:', iconPath);
         return image;
       }
     } catch (error) {
@@ -545,16 +631,20 @@ function getTrayIcon() {
     }
   }
 
-  return nativeImage.createFromDataURL(
-    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9sM8oVUAAAAASUVORK5CYII='
-  );
+  console.warn('No tray icon file could be loaded. Falling back to executable icon.');
+  const exeIcon = nativeImage.createFromPath(process.execPath);
+  if (!exeIcon.isEmpty()) {
+    return exeIcon.resize({ width: 16, height: 16 });
+  }
+
+  return nativeImage.createEmpty();
 }
 
 function createTray() {
   try {
     const trayIcon = getTrayIcon();
     tray = new Tray(trayIcon);
-    tray.setToolTip('My Launcher');
+    tray.setToolTip(APP_DISPLAY_NAME);
 
     const buildMenu = () =>
       Menu.buildFromTemplate([
@@ -592,6 +682,14 @@ function createTray() {
 }
 
 function setupIpcHandlers() {
+  ipcMain.handle('get-auto-launch-enabled', () => {
+    return { enabled: getAutoLaunchEnabled() };
+  });
+
+  ipcMain.handle('set-auto-launch-enabled', (_event, enabled) => {
+    return setAutoLaunchEnabled(enabled);
+  });
+
   ipcMain.handle('get-launcher-apps', () => {
     return {
       apps: Array.isArray(launcherAppsCatalog) ? launcherAppsCatalog : []

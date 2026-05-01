@@ -1,6 +1,8 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('launcher', {
+  getAutoLaunchEnabled: () => ipcRenderer.invoke('get-auto-launch-enabled'),
+  setAutoLaunchEnabled: (enabled) => ipcRenderer.invoke('set-auto-launch-enabled', enabled),
   getLauncherApps: () => ipcRenderer.invoke('get-launcher-apps'),
   showWindow: () => ipcRenderer.invoke('show-window'),
   hideWindow: () => ipcRenderer.invoke('hide-window'),
