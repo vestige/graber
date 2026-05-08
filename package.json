@@ -6,7 +6,9 @@
   "scripts": {
     "start": "electron .",
     "build": "electron-builder --win --dir",
-    "dist": "electron-builder --win"
+    "dist": "electron-builder --win",
+    "build:mac": "electron-builder --mac --dir",
+    "dist:mac": "electron-builder --mac"
   },
   "author": "",
   "license": "MIT",
@@ -27,6 +29,12 @@
         "portable"
       ],
       "icon": "icon.ico"
+    },
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ]
     }
   },
   "devDependencies": {

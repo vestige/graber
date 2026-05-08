@@ -105,6 +105,10 @@ function setAutoLaunchEnabled(enabled) {
               openAtLogin: false
             }
       );
+    } else if (process.platform === 'darwin') {
+      app.setLoginItemSettings({
+        openAtLogin: desired
+      });
     }
 
     return {
@@ -192,6 +196,69 @@ async function scanStartMenuApps() {
   return all;
 }
 
+async function collectMacApplicationBundles(rootDir) {
+  const results = [];
+  const stack = [rootDir];
+
+  while (stack.length > 0) {
+    const current = stack.pop();
+    if (!current) {
+      continue;
+    }
+
+    try {
+      const entries = await fs.promises.readdir(current, { withFileTypes: true });
+      for (const entry of entries) {
+        if (!entry.isDirectory()) {
+          continue;
+        }
+
+        const fullPath = path.join(current, entry.name);
+        if (entry.name.toLowerCase().endsWith('.app')) {
+          const appName = path.basename(entry.name, '.app').trim();
+          if (appName) {
+            results.push({
+              name: appName,
+              path: fullPath,
+              source: 'auto'
+            });
+          }
+          continue;
+        }
+
+        stack.push(fullPath);
+      }
+    } catch (error) {
+      console.warn('macOS app scan skipped for directory:', current, error);
+    }
+  }
+
+  return results;
+}
+
+function getMacApplicationDirectories() {
+  let homeApplications = '';
+  try {
+    homeApplications = path.join(app.getPath('home'), 'Applications');
+  } catch (error) {
+    console.warn('Failed to resolve macOS home Applications path:', error);
+  }
+
+  return ['/Applications', '/System/Applications', homeApplications].filter(
+    (item, index, self) => item && self.indexOf(item) === index
+  );
+}
+
+async function scanMacApps() {
+  const roots = getMacApplicationDirectories();
+  const all = [];
+  for (const root of roots) {
+    const items = await collectMacApplicationBundles(root);
+    all.push(...items);
+  }
+  return all;
+}
+
 function mergeAppCatalogs(manualApps, autoApps) {
   const merged = new Map();
   for (const appItem of autoApps) {
@@ -217,7 +284,14 @@ function mergeAppCatalogs(manualApps, autoApps) {
 
 async function initializeLauncherAppsCatalog() {
   try {
-    const [manualApps, autoApps] = await Promise.all([readManualAppsFromJson(), scanStartMenuApps()]);
+    let autoApps = [];
+    if (process.platform === 'win32') {
+      autoApps = await scanStartMenuApps();
+    } else if (process.platform === 'darwin') {
+      autoApps = await scanMacApps();
+    }
+
+    const manualApps = await readManualAppsFromJson();
     launcherAppsCatalog = mergeAppCatalogs(manualApps, autoApps);
   } catch (error) {
     console.warn('Failed to initialize launcher app catalog:', error);
@@ -443,7 +517,7 @@ function isWindowsShortcut(filePath) {
 }
 
 function pathLooksAbsolute(filePath) {
-  return /^[a-zA-Z]:\\/.test(filePath) || filePath.startsWith('\\\\');
+  return path.isAbsolute(filePath) || filePath.startsWith('\\\\');
 }
 
 function getExecutableName(appPath) {
@@ -495,6 +569,7 @@ function launchApp(appPath) {
     try {
       const safePath = sanitizeAppPath(appPath);
       const shortcut = isWindowsShortcut(safePath);
+      const macAppBundle = process.platform === 'darwin' && safePath.toLowerCase().endsWith('.app');
 
       if (pathLooksAbsolute(safePath) && !fs.existsSync(safePath)) {
         resolve({ ok: false, error: `Path not found: ${safePath}` });
@@ -520,6 +595,38 @@ function launchApp(appPath) {
               error: error instanceof Error ? error.message : String(error)
             });
           });
+        return;
+      }
+
+      if (macAppBundle) {
+        const child = spawn('open', [safePath], {
+          detached: true,
+          shell: false,
+          stdio: 'ignore'
+        });
+
+        let settled = false;
+        const finish = (result) => {
+          if (settled) {
+            return;
+          }
+
+          settled = true;
+          resolve(result);
+        };
+
+        child.once('error', (error) => {
+          console.error('Failed to launch macOS app bundle:', error);
+          finish({
+            ok: false,
+            error: error instanceof Error ? error.message : String(error)
+          });
+        });
+
+        child.once('spawn', () => {
+          child.unref();
+          finish({ ok: true });
+        });
         return;
       }
 
@@ -586,18 +693,18 @@ async function searchWeb(query) {
 }
 
 function registerLauncherShortcuts() {
-  const primary = globalShortcut.register('Control+Space', () => {
-    toggleLauncherWindow();
-  });
-  if (!primary) {
-    console.warn('Failed to register global shortcut: Ctrl+Space');
-  }
+  const launchShortcuts =
+    process.platform === 'darwin'
+      ? ['Command+Shift+Space', 'Control+Space']
+      : ['Control+Space', 'Control+Shift+Space'];
 
-  const fallback = globalShortcut.register('Control+Shift+Space', () => {
-    toggleLauncherWindow();
-  });
-  if (!fallback) {
-    console.warn('Failed to register global shortcut: Ctrl+Shift+Space');
+  for (const accelerator of launchShortcuts) {
+    const ok = globalShortcut.register(accelerator, () => {
+      toggleLauncherWindow();
+    });
+    if (!ok) {
+      console.warn(`Failed to register global shortcut: ${accelerator}`);
+    }
   }
 
   const escape = globalShortcut.register('Escape', () => {
