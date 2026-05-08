@@ -116,6 +116,10 @@ function getUsageCount(appItem) {
   return Number(usageCounts[appItem.path] || 0);
 }
 
+function getSourceLabel(appItem) {
+  return appItem && appItem.source === 'manual' ? 'Manual' : 'Auto';
+}
+
 function sortByUsageThenName(items) {
   return [...items].sort((a, b) => {
     const diff = getUsageCount(b) - getUsageCount(a);
@@ -229,11 +233,25 @@ function renderItems() {
     button.className = 'item';
     button.dataset.index = String(i);
 
-    if (action.app && action.app.source === 'auto') {
-      button.textContent = `${action.label} (Auto)`;
-    } else {
-      button.textContent = action.label;
-    }
+    const title = document.createElement('div');
+    title.className = 'item-title';
+    title.textContent = action.label;
+
+    const meta = document.createElement('div');
+    meta.className = 'item-meta';
+
+    const sourceChip = document.createElement('span');
+    sourceChip.className = `chip ${action.app && action.app.source === 'manual' ? 'source-manual' : 'source-auto'}`;
+    sourceChip.textContent = getSourceLabel(action.app);
+
+    const usageChip = document.createElement('span');
+    usageChip.className = 'chip usage';
+    usageChip.textContent = `起動 ${getUsageCount(action.app)} 回`;
+
+    meta.appendChild(sourceChip);
+    meta.appendChild(usageChip);
+    button.appendChild(title);
+    button.appendChild(meta);
 
     if (i === selectedIndex) {
       button.classList.add('selected');
@@ -255,9 +273,8 @@ function renderItems() {
 
   if (actions.length === 0) {
     const empty = document.createElement('div');
+    empty.className = 'empty';
     empty.textContent = '一致するアプリがありません。';
-    empty.style.color = '#6b7280';
-    empty.style.fontSize = '13px';
     itemsListEl.appendChild(empty);
   }
 }

@@ -7,16 +7,19 @@
     <title>graber</title>
     <style>
       :root {
-        --bg: rgba(245, 247, 251, 0.88);
-        --card: rgba(255, 255, 255, 0.88);
-        --text: #1f2937;
-        --subtle: #6b7280;
-        --primary: #0f766e;
-        --primary-hover: #115e59;
-        --line: #d1d5db;
-        --success: #065f46;
-        --error: #b91c1c;
-        --selected: #d1fae5;
+        --bg-top: #d7f5ee;
+        --bg-bottom: #f2efe8;
+        --card: rgba(255, 255, 255, 0.78);
+        --card-border: rgba(15, 23, 42, 0.08);
+        --text: #0f172a;
+        --subtle: #475569;
+        --primary: #0b766e;
+        --primary-strong: #0a5d56;
+        --line: rgba(15, 23, 42, 0.12);
+        --success: #0f766e;
+        --error: #b42318;
+        --selected: rgba(10, 93, 86, 0.12);
+        --shadow: 0 20px 50px rgba(2, 6, 23, 0.16);
       }
 
       * {
@@ -25,49 +28,142 @@
 
       body {
         margin: 0;
-        font-family: "Segoe UI", "Yu Gothic UI", sans-serif;
-        background: var(--bg);
+        font-family: "Bahnschrift", "Segoe UI Variable", "Yu Gothic UI", sans-serif;
+        background: linear-gradient(150deg, var(--bg-top) 0%, var(--bg-bottom) 100%);
         color: var(--text);
+        overflow: hidden;
+      }
+
+      body::before,
+      body::after {
+        content: "";
+        position: fixed;
+        border-radius: 999px;
+        filter: blur(8px);
+        pointer-events: none;
+      }
+
+      body::before {
+        width: 360px;
+        height: 360px;
+        right: -120px;
+        top: -80px;
+        background: radial-gradient(circle at center, rgba(11, 118, 110, 0.24) 0%, rgba(11, 118, 110, 0) 70%);
+      }
+
+      body::after {
+        width: 300px;
+        height: 300px;
+        left: -90px;
+        bottom: -90px;
+        background: radial-gradient(circle at center, rgba(30, 64, 175, 0.18) 0%, rgba(30, 64, 175, 0) 72%);
       }
 
       .container {
         width: 100%;
         height: 100vh;
-        padding: 20px;
+        padding: 16px;
+        animation: frame-in 260ms ease-out;
       }
 
-      h1 {
-        margin: 0 0 12px;
-        font-size: 24px;
+      @keyframes frame-in {
+        from {
+          opacity: 0;
+          transform: translateY(6px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      .panel-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        margin-bottom: 10px;
+      }
+
+      .title-wrap {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+
+      .title {
+        margin: 0;
+        font-size: 30px;
+        line-height: 1;
+        letter-spacing: 0.02em;
+      }
+
+      .subtitle {
+        margin: 0;
+        font-size: 12px;
+        color: var(--subtle);
+      }
+
+      .badge {
+        border: 1px solid var(--card-border);
+        border-radius: 999px;
+        padding: 4px 9px;
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--primary-strong);
+        background: rgba(255, 255, 255, 0.7);
       }
 
       .panel {
         background: var(--card);
-        border: 1px solid var(--line);
-        border-radius: 12px;
-        height: calc(100vh - 72px);
+        border: 1px solid var(--card-border);
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(12px);
+        border-radius: 16px;
+        height: calc(100vh - 86px);
         display: flex;
         flex-direction: column;
-        padding: 14px;
-        gap: 10px;
+        padding: 14px 14px 12px;
+        gap: 11px;
+      }
+
+      .search-wrap {
+        position: relative;
+      }
+
+      .search-wrap::before {
+        content: "⌕";
+        position: absolute;
+        left: 11px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: var(--subtle);
+        font-size: 13px;
       }
 
       .search {
         width: 100%;
         border: 1px solid var(--line);
         border-radius: 10px;
-        padding: 10px 12px;
+        padding: 10px 12px 10px 30px;
         font-size: 14px;
+        background: rgba(255, 255, 255, 0.92);
+        color: var(--text);
         outline: none;
+        transition: border-color 120ms ease, box-shadow 120ms ease;
       }
 
       .search:focus {
-        border-color: var(--primary);
+        border-color: var(--primary-strong);
+        box-shadow: 0 0 0 3px rgba(11, 118, 110, 0.16);
       }
 
       .status {
         font-size: 13px;
         color: var(--subtle);
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.7);
+        border-radius: 999px;
+        padding: 6px 10px;
       }
 
       .setting-row {
@@ -75,7 +171,8 @@
         align-items: center;
         gap: 8px;
         font-size: 13px;
-        color: var(--text);
+        color: var(--subtle);
+        padding: 6px 0 2px;
       }
 
       .setting-row input[type="checkbox"] {
@@ -85,11 +182,20 @@
 
       .status.on {
         color: var(--success);
+        border-color: rgba(15, 118, 110, 0.3);
+        background: rgba(15, 118, 110, 0.08);
+      }
+
+      .status.off {
+        color: #a16207;
+        border-color: rgba(161, 98, 7, 0.25);
+        background: rgba(202, 138, 4, 0.08);
       }
 
       .filter-controls {
         display: flex;
-        align-items: center;
+        align-items: stretch;
+        justify-content: space-between;
         gap: 8px;
       }
 
@@ -98,14 +204,19 @@
         border-radius: 10px;
         padding: 9px 12px;
         font-size: 13px;
-        font-weight: 600;
+        font-weight: 700;
         cursor: pointer;
-        background: var(--primary);
+        background: linear-gradient(135deg, var(--primary) 0%, var(--primary-strong) 100%);
         color: #ffffff;
+        transition: transform 120ms ease, filter 120ms ease;
       }
 
       .filter-toggle:hover {
-        background: var(--primary-hover);
+        filter: brightness(1.04);
+      }
+
+      .filter-toggle:active {
+        transform: translateY(1px);
       }
 
       .list {
@@ -119,40 +230,76 @@
 
       .item {
         width: 100%;
-        border: none;
+        border: 1px solid rgba(148, 163, 184, 0.25);
         border-radius: 10px;
-        padding: 11px 12px;
+        padding: 10px 12px;
         font-size: 14px;
         font-weight: 600;
         text-align: left;
         cursor: pointer;
-        background: #e5e7eb;
+        background: rgba(255, 255, 255, 0.72);
         color: var(--text);
+        transition: transform 100ms ease, border-color 100ms ease, background-color 100ms ease;
       }
 
-      .item.filter {
-        background: var(--primary);
-        color: #ffffff;
+      .item:hover {
+        border-color: rgba(11, 118, 110, 0.45);
+        transform: translateX(1px);
       }
 
-      .item.filter:hover {
-        background: var(--primary-hover);
+      .item-title {
+        font-size: 14px;
+        font-weight: 700;
+        line-height: 1.35;
+      }
+
+      .item-meta {
+        margin-top: 4px;
+        display: flex;
+        gap: 6px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+
+      .chip {
+        font-size: 11px;
+        line-height: 1;
+        padding: 4px 7px;
+        border-radius: 999px;
+        border: 1px solid var(--line);
+        color: var(--subtle);
+        background: rgba(255, 255, 255, 0.78);
+      }
+
+      .chip.source-manual {
+        color: #1e3a8a;
+        border-color: rgba(30, 58, 138, 0.24);
+        background: rgba(30, 58, 138, 0.08);
+      }
+
+      .chip.source-auto {
+        color: #0f766e;
+        border-color: rgba(15, 118, 110, 0.24);
+        background: rgba(15, 118, 110, 0.09);
+      }
+
+      .chip.usage {
+        color: #7c2d12;
+        border-color: rgba(124, 45, 18, 0.24);
+        background: rgba(124, 45, 18, 0.08);
       }
 
       .item.selected {
-        outline: 2px solid #10b981;
-        outline-offset: 1px;
+        border-color: rgba(10, 93, 86, 0.54);
         background: var(--selected);
-      }
-
-      .item.filter.selected {
-        background: var(--primary-hover);
-        outline: 2px solid #99f6e4;
+        box-shadow: 0 0 0 2px rgba(11, 118, 110, 0.2);
       }
 
       .message {
-        min-height: 20px;
+        min-height: 21px;
         font-size: 13px;
+        font-weight: 600;
+        color: var(--subtle);
       }
 
       .message.success {
@@ -166,14 +313,30 @@
       .shortcut {
         font-size: 12px;
         color: var(--subtle);
+        opacity: 0.9;
+      }
+
+      .empty {
+        font-size: 13px;
+        color: var(--subtle);
+        padding: 14px 10px;
+        text-align: center;
       }
     </style>
   </head>
   <body>
     <main class="container">
-      <h1>graber</h1>
+      <div class="panel-head">
+        <div class="title-wrap">
+          <h1 class="title">graber</h1>
+          <p class="subtitle">launcher + privacy filter</p>
+        </div>
+        <div class="badge">v3</div>
+      </div>
       <section class="panel">
-        <input id="searchInput" class="search" type="text" placeholder="アプリ名で検索" autocomplete="off" />
+        <div class="search-wrap">
+          <input id="searchInput" class="search" type="text" placeholder="アプリ名で検索" autocomplete="off" />
+        </div>
         <div class="filter-controls">
           <button id="filterToggleButton" class="filter-toggle" type="button">プライバシーフィルター ON/OFF</button>
           <div id="filterStatus" class="status off">プライバシーフィルター: OFF</div>
