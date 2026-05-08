@@ -180,17 +180,36 @@ function rebuildFilteredApps() {
   filteredApps = resolveDisplayApps(query);
 }
 
+function getCurrentQuery() {
+  return searchInputEl ? String(searchInputEl.value || '').trim() : '';
+}
+
 function getPreferredSelectionIndex() {
   return 0;
 }
 
 function buildActions() {
-  return filteredApps.map((appItem, idx) => ({
+  const appActions = filteredApps.map((appItem, idx) => ({
     id: `app-${idx}`,
     type: 'app',
     label: appItem.name,
     app: appItem
   }));
+
+  const query = getCurrentQuery();
+  if (!query) {
+    return appActions;
+  }
+
+  return [
+    ...appActions,
+    {
+      id: 'web-search',
+      type: 'web',
+      label: `Web検索: ${query}`,
+      query
+    }
+  ];
 }
 
 function normalizeSelection() {
@@ -241,15 +260,21 @@ function renderItems() {
     meta.className = 'item-meta';
 
     const sourceChip = document.createElement('span');
-    sourceChip.className = `chip ${action.app && action.app.source === 'manual' ? 'source-manual' : 'source-auto'}`;
-    sourceChip.textContent = getSourceLabel(action.app);
+    if (action.type === 'web') {
+      sourceChip.className = 'chip source-web';
+      sourceChip.textContent = 'Web';
+      meta.appendChild(sourceChip);
+    } else {
+      sourceChip.className = `chip ${action.app && action.app.source === 'manual' ? 'source-manual' : 'source-auto'}`;
+      sourceChip.textContent = getSourceLabel(action.app);
+      meta.appendChild(sourceChip);
 
-    const usageChip = document.createElement('span');
-    usageChip.className = 'chip usage';
-    usageChip.textContent = `起動 ${getUsageCount(action.app)} 回`;
+      const usageChip = document.createElement('span');
+      usageChip.className = 'chip usage';
+      usageChip.textContent = `起動 ${getUsageCount(action.app)} 回`;
+      meta.appendChild(usageChip);
+    }
 
-    meta.appendChild(sourceChip);
-    meta.appendChild(usageChip);
     button.appendChild(title);
     button.appendChild(meta);
 
@@ -319,6 +344,21 @@ async function executeAction(action) {
       }
     } catch (error) {
       setMessage(`起動失敗: ${action.app.name} (${String(error)})`, 'error');
+    }
+  }
+
+  if (action.type === 'web') {
+    try {
+      const result = await window.launcher.searchWeb(action.query);
+      if (result && result.ok) {
+        setMessage(`Web検索: ${action.query}`, 'success');
+        await window.launcher.hideWindow();
+      } else {
+        const errorText = result && result.error ? result.error : '不明なエラー';
+        setMessage(`Web検索に失敗: ${errorText}`, 'error');
+      }
+    } catch (error) {
+      setMessage(`Web検索に失敗: ${String(error)}`, 'error');
     }
   }
 }

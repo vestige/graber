@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld('launcher', {
   togglePrivacyFilter: () => ipcRenderer.invoke('toggle-privacy-filter'),
   isPrivacyFilterVisible: () => ipcRenderer.invoke('is-privacy-filter-visible'),
   launchApp: (appPath) => ipcRenderer.invoke('launch-app', appPath),
+  searchWeb: (query) => ipcRenderer.invoke('search-web', query),
   onWindowShown: (callback) => {
     if (typeof callback !== 'function') {
       return () => {};

@@ -563,6 +563,28 @@ function launchApp(appPath) {
   });
 }
 
+function buildWebSearchUrl(query) {
+  const normalized = String(query || '').trim();
+  if (!normalized) {
+    throw new Error('Search query cannot be empty.');
+  }
+
+  return `https://www.google.com/search?q=${encodeURIComponent(normalized)}`;
+}
+
+async function searchWeb(query) {
+  try {
+    const targetUrl = buildWebSearchUrl(query);
+    await shell.openExternal(targetUrl);
+    return { ok: true, url: targetUrl };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : String(error)
+    };
+  }
+}
+
 function registerLauncherShortcuts() {
   const primary = globalShortcut.register('Control+Space', () => {
     toggleLauncherWindow();
@@ -741,6 +763,10 @@ function setupIpcHandlers() {
 
   ipcMain.handle('launch-app', async (_event, appPath) => {
     return launchApp(appPath);
+  });
+
+  ipcMain.handle('search-web', async (_event, query) => {
+    return searchWeb(query);
   });
 }
 
