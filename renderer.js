@@ -13,6 +13,7 @@ let recentPaths = [];
 
 let searchInputEl;
 let filterStatusEl;
+let filterToggleButtonEl;
 let itemsListEl;
 let messageEl;
 let autoLaunchCheckboxEl;
@@ -176,28 +177,16 @@ function rebuildFilteredApps() {
 }
 
 function getPreferredSelectionIndex() {
-  const query = searchInputEl ? String(searchInputEl.value || '').trim() : '';
-  if (query.length > 0 && filteredApps.length > 0) {
-    return 1;
-  }
-
   return 0;
 }
 
 function buildActions() {
-  return [
-    {
-      id: 'privacy-filter',
-      type: 'filter',
-      label: 'プライバシーフィルター ON/OFF'
-    },
-    ...filteredApps.map((appItem, idx) => ({
-      id: `app-${idx}`,
-      type: 'app',
-      label: appItem.name,
-      app: appItem
-    }))
-  ];
+  return filteredApps.map((appItem, idx) => ({
+    id: `app-${idx}`,
+    type: 'app',
+    label: appItem.name,
+    app: appItem
+  }));
 }
 
 function normalizeSelection() {
@@ -237,10 +226,10 @@ function renderItems() {
     const action = actions[i];
     const button = document.createElement('button');
     button.type = 'button';
-    button.className = `item ${action.type === 'filter' ? 'filter' : ''}`.trim();
+    button.className = 'item';
     button.dataset.index = String(i);
 
-    if (action.type === 'app' && action.app && action.app.source === 'auto') {
+    if (action.app && action.app.source === 'auto') {
       button.textContent = `${action.label} (Auto)`;
     } else {
       button.textContent = action.label;
@@ -264,7 +253,7 @@ function renderItems() {
     itemsListEl.appendChild(button);
   }
 
-  if (actions.length === 1) {
+  if (actions.length === 0) {
     const empty = document.createElement('div');
     empty.textContent = '一致するアプリがありません。';
     empty.style.color = '#6b7280';
@@ -296,18 +285,6 @@ function updateRecents(appItem) {
 
 async function executeAction(action) {
   if (!action) {
-    return;
-  }
-
-  if (action.type === 'filter') {
-    try {
-      const result = await window.launcher.togglePrivacyFilter();
-      const visible = Boolean(result && result.visible);
-      setFilterStatus(visible);
-      setMessage(`プライバシーフィルター: ${visible ? 'ON' : 'OFF'}`, 'success');
-    } catch (error) {
-      setMessage(`フィルター操作に失敗: ${String(error)}`, 'error');
-    }
     return;
   }
 
@@ -362,10 +339,18 @@ function moveSelection(delta) {
 async function executeSelected() {
   const actions = buildActions();
   normalizeSelection();
-  const fallbackToFirstApp =
-    selectedIndex === 0 && filteredApps.length > 0 && searchInputEl && String(searchInputEl.value || '').trim().length > 0;
-  const targetIndex = fallbackToFirstApp ? 1 : selectedIndex;
-  await executeAction(actions[targetIndex]);
+  await executeAction(actions[selectedIndex]);
+}
+
+async function togglePrivacyFilterFromButton() {
+  try {
+    const result = await window.launcher.togglePrivacyFilter();
+    const visible = Boolean(result && result.visible);
+    setFilterStatus(visible);
+    setMessage(`プライバシーフィルター: ${visible ? 'ON' : 'OFF'}`, 'success');
+  } catch (error) {
+    setMessage(`フィルター操作に失敗: ${String(error)}`, 'error');
+  }
 }
 
 function setupKeyboardHandlers() {
@@ -471,11 +456,12 @@ async function loadAppsCatalog() {
 async function init() {
   searchInputEl = document.getElementById('searchInput');
   filterStatusEl = document.getElementById('filterStatus');
+  filterToggleButtonEl = document.getElementById('filterToggleButton');
   itemsListEl = document.getElementById('itemsList');
   messageEl = document.getElementById('message');
   autoLaunchCheckboxEl = document.getElementById('autoLaunchCheckbox');
 
-  if (!searchInputEl || !filterStatusEl || !itemsListEl || !messageEl || !autoLaunchCheckboxEl) {
+  if (!searchInputEl || !filterStatusEl || !filterToggleButtonEl || !itemsListEl || !messageEl || !autoLaunchCheckboxEl) {
     return;
   }
 
@@ -490,6 +476,9 @@ async function init() {
     rebuildFilteredApps();
     selectedIndex = getPreferredSelectionIndex();
     renderItems();
+  });
+  filterToggleButtonEl.addEventListener('click', () => {
+    togglePrivacyFilterFromButton();
   });
 
   setupKeyboardHandlers();

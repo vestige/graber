@@ -87,6 +87,27 @@
         color: var(--success);
       }
 
+      .filter-controls {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .filter-toggle {
+        border: none;
+        border-radius: 10px;
+        padding: 9px 12px;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        background: var(--primary);
+        color: #ffffff;
+      }
+
+      .filter-toggle:hover {
+        background: var(--primary-hover);
+      }
+
       .list {
         flex: 1;
         overflow: auto;
@@ -153,7 +174,10 @@
       <h1>graber</h1>
       <section class="panel">
         <input id="searchInput" class="search" type="text" placeholder="アプリ名で検索" autocomplete="off" />
-        <div id="filterStatus" class="status off">プライバシーフィルター: OFF</div>
+        <div class="filter-controls">
+          <button id="filterToggleButton" class="filter-toggle" type="button">プライバシーフィルター ON/OFF</button>
+          <div id="filterStatus" class="status off">プライバシーフィルター: OFF</div>
+        </div>
         <label class="setting-row">
           <input id="autoLaunchCheckbox" type="checkbox" />
           <span>PC起動時に自動起動する</span>

@@ -4,6 +4,11 @@ const fs = require('fs');
 const { spawn } = require('child_process');
 
 const APP_DISPLAY_NAME = 'graber';
+const hasSingleInstanceLock = app.requestSingleInstanceLock();
+
+if (!hasSingleInstanceLock) {
+  app.quit();
+}
 
 let mainWindow = null;
 let filterWindows = [];
@@ -759,7 +764,15 @@ function setupDisplayChangeHandlers() {
   screen.on('display-metrics-changed', safeRefresh);
 }
 
+app.on('second-instance', () => {
+  showLauncherWindow();
+});
+
 app.whenReady().then(async () => {
+  if (!hasSingleInstanceLock) {
+    return;
+  }
+
   await initializeLauncherAppsCatalog();
   Menu.setApplicationMenu(null);
   createMainWindow();
