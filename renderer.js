@@ -96,6 +96,14 @@ function setMessage(text, type = '') {
   }
 }
 
+function getResultErrorText(result, fallbackText) {
+  if (result && typeof result.error === 'string' && result.error.trim().length > 0) {
+    return result.error.trim();
+  }
+
+  return fallbackText;
+}
+
 function setFilterStatus(visible) {
   if (!filterStatusEl) {
     return;
@@ -339,11 +347,11 @@ async function executeAction(action) {
         setMessage(`起動: ${action.app.name}`, 'success');
         await window.launcher.hideWindow();
       } else {
-        const errorText = result && result.error ? result.error : '不明なエラー';
+        const errorText = getResultErrorText(result, 'アプリを起動できませんでした。');
         setMessage(`起動失敗: ${action.app.name} (${errorText})`, 'error');
       }
-    } catch (error) {
-      setMessage(`起動失敗: ${action.app.name} (${String(error)})`, 'error');
+    } catch (_error) {
+      setMessage(`起動失敗: ${action.app.name} (アプリを起動できませんでした。)`, 'error');
     }
   }
 
@@ -354,11 +362,11 @@ async function executeAction(action) {
         setMessage(`Web検索: ${action.query}`, 'success');
         await window.launcher.hideWindow();
       } else {
-        const errorText = result && result.error ? result.error : '不明なエラー';
+        const errorText = getResultErrorText(result, 'Web検索を開けませんでした。');
         setMessage(`Web検索に失敗: ${errorText}`, 'error');
       }
-    } catch (error) {
-      setMessage(`Web検索に失敗: ${String(error)}`, 'error');
+    } catch (_error) {
+      setMessage('Web検索に失敗: Web検索を開けませんでした。', 'error');
     }
   }
 }
@@ -417,8 +425,8 @@ function setupKeyboardHandlers() {
       try {
         const result = await window.launcher.hidePrivacyFilter();
         setFilterStatus(Boolean(result && result.visible));
-      } catch (error) {
-        setMessage(`Esc操作に失敗: ${String(error)}`, 'error');
+      } catch (_error) {
+        setMessage('Esc操作に失敗: フィルターを解除できませんでした。', 'error');
       }
       return;
     }
@@ -450,9 +458,9 @@ async function initAutoLaunchSetting() {
   try {
     const state = await window.launcher.getAutoLaunchEnabled();
     autoLaunchCheckboxEl.checked = Boolean(state && state.enabled);
-  } catch (error) {
+  } catch (_error) {
     autoLaunchCheckboxEl.checked = false;
-    setMessage(`自動起動状態の取得に失敗: ${String(error)}`, 'error');
+    setMessage('自動起動状態の取得に失敗しました。', 'error');
   }
 
   autoLaunchCheckboxEl.addEventListener('change', async () => {
@@ -464,12 +472,12 @@ async function initAutoLaunchSetting() {
       if (result && result.ok) {
         setMessage(`自動起動: ${enabled ? 'ON' : 'OFF'}`, 'success');
       } else {
-        const detail = result && result.error ? ` (${result.error})` : '';
+        const detail = ` (${getResultErrorText(result, '設定を変更できませんでした。')})`;
         setMessage(`自動起動設定に失敗${detail}`, 'error');
       }
-    } catch (error) {
+    } catch (_error) {
       autoLaunchCheckboxEl.checked = !desired;
-      setMessage(`自動起動設定に失敗: ${String(error)}`, 'error');
+      setMessage('自動起動設定に失敗: 設定を変更できませんでした。', 'error');
     }
   });
 }
@@ -504,8 +512,8 @@ async function loadAppsCatalog() {
         };
       })
       .filter(Boolean);
-  } catch (error) {
-    setMessage(`アプリ一覧取得に失敗: ${String(error)}`, 'error');
+  } catch (_error) {
+    setMessage('アプリ一覧取得に失敗しました。', 'error');
     return [];
   }
 }
@@ -544,9 +552,9 @@ async function init() {
   try {
     const state = await window.launcher.isPrivacyFilterVisible();
     setFilterStatus(Boolean(state && state.visible));
-  } catch (error) {
+  } catch (_error) {
     setFilterStatus(false);
-    setMessage(`初期状態取得に失敗: ${String(error)}`, 'error');
+    setMessage('初期状態の取得に失敗しました。', 'error');
   }
 
   window.launcher.onPrivacyFilterStateChanged((visible) => {
@@ -559,7 +567,7 @@ async function init() {
 }
 
 window.addEventListener('DOMContentLoaded', () => {
-  init().catch((error) => {
-    setMessage(`初期化エラー: ${String(error)}`, 'error');
+  init().catch((_error) => {
+    setMessage('初期化エラーが発生しました。', 'error');
   });
 });

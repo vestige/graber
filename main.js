@@ -5,6 +5,7 @@ const { spawn } = require('child_process');
 
 const APP_DISPLAY_NAME = 'graber';
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
+const DEBUG_LOG_ENABLED = process.env.GRABER_DEBUG === '1' || !app.isPackaged;
 
 if (!hasSingleInstanceLock) {
   app.quit();
@@ -16,6 +17,62 @@ let isFilterVisible = false;
 let tray = null;
 let isQuitting = false;
 let launcherAppsCatalog = [];
+
+function getErrorText(error) {
+  if (error instanceof Error && typeof error.message === 'string') {
+    return error.message;
+  }
+
+  return String(error);
+}
+
+function logDebug(message, error) {
+  if (!DEBUG_LOG_ENABLED) {
+    return;
+  }
+
+  if (error !== undefined) {
+    console.log(`[graber] ${message}`, error);
+    return;
+  }
+
+  console.log(`[graber] ${message}`);
+}
+
+function logWarn(message, error) {
+  if (!DEBUG_LOG_ENABLED) {
+    return;
+  }
+
+  if (error !== undefined) {
+    console.warn(`[graber] ${message}`, error);
+    return;
+  }
+
+  console.warn(`[graber] ${message}`);
+}
+
+function logError(message, error) {
+  if (error !== undefined) {
+    console.error(`[graber] ${message}`, error);
+    return;
+  }
+
+  console.error(`[graber] ${message}`);
+}
+
+function buildFailure(userMessage, error) {
+  const response = {
+    ok: false,
+    error: userMessage
+  };
+
+  if (DEBUG_LOG_ENABLED && error !== undefined) {
+    response.detail = getErrorText(error);
+  }
+
+  return response;
+}
 
 function getRuntimeFilePath(relativePath) {
   const candidates = [
@@ -76,7 +133,7 @@ async function readManualAppsFromJson() {
       .map((item) => sanitizeCatalogItem(item, 'manual'))
       .filter(Boolean);
   } catch (error) {
-    console.warn('Failed to read apps.json. Continuing with auto apps only.', error);
+    logWarn('Failed to read apps.json. Continuing with auto apps only.', error);
     return [];
   }
 }
@@ -86,7 +143,7 @@ function getAutoLaunchEnabled() {
     const settings = app.getLoginItemSettings();
     return Boolean(settings && settings.openAtLogin);
   } catch (error) {
-    console.warn('Failed to get login item settings:', error);
+    logWarn('Failed to get login item settings.', error);
     return false;
   }
 }
@@ -116,11 +173,11 @@ function setAutoLaunchEnabled(enabled) {
       enabled: getAutoLaunchEnabled()
     };
   } catch (error) {
-    console.error('Failed to set auto launch setting:', error);
+    logError('Failed to set auto launch setting.', error);
     return {
-      ok: false,
+      ...buildFailure('自動起動設定を更新できませんでした。', error),
       enabled: getAutoLaunchEnabled(),
-      error: error instanceof Error ? error.message : String(error)
+      code: 'AUTO_LAUNCH_UPDATE_FAILED'
     };
   }
 }
@@ -164,7 +221,7 @@ async function collectShortcutFiles(rootDir) {
         });
       }
     } catch (error) {
-      console.warn('Start menu scan skipped for directory:', current, error);
+      logWarn(`Start menu scan skipped for directory: ${current}`, error);
     }
   }
 
@@ -177,7 +234,7 @@ function getStartMenuDirectories() {
   try {
     userStartMenu = path.join(app.getPath('appData'), 'Microsoft', 'Windows', 'Start Menu', 'Programs');
   } catch (error) {
-    console.warn('Failed to resolve user start menu path from appData:', error);
+    logWarn('Failed to resolve user start menu path from appData.', error);
   }
 
   return [
@@ -229,7 +286,7 @@ async function collectMacApplicationBundles(rootDir) {
         stack.push(fullPath);
       }
     } catch (error) {
-      console.warn('macOS app scan skipped for directory:', current, error);
+      logWarn(`macOS app scan skipped for directory: ${current}`, error);
     }
   }
 
@@ -241,7 +298,7 @@ function getMacApplicationDirectories() {
   try {
     homeApplications = path.join(app.getPath('home'), 'Applications');
   } catch (error) {
-    console.warn('Failed to resolve macOS home Applications path:', error);
+    logWarn('Failed to resolve macOS home Applications path.', error);
   }
 
   return ['/Applications', '/System/Applications', homeApplications].filter(
@@ -294,7 +351,7 @@ async function initializeLauncherAppsCatalog() {
     const manualApps = await readManualAppsFromJson();
     launcherAppsCatalog = mergeAppCatalogs(manualApps, autoApps);
   } catch (error) {
-    console.warn('Failed to initialize launcher app catalog:', error);
+    logWarn('Failed to initialize launcher app catalog.', error);
     launcherAppsCatalog = [];
   }
 }
@@ -327,7 +384,7 @@ function createMainWindow() {
   });
 
   mainWindow.loadFile(path.join(__dirname, 'index.html')).catch((err) => {
-    console.error('Failed to load index.html:', err);
+    logError('Failed to load index.html.', err);
   });
   mainWindow.setMenuBarVisibility(false);
   mainWindow.removeMenu();
@@ -374,14 +431,14 @@ function createFilterWindowForDisplay(display) {
     filterWindow.setMenuBarVisibility(false);
     filterWindow.setIgnoreMouseEvents(true);
     filterWindow.loadFile(path.join(__dirname, 'filter.html')).catch((err) => {
-      console.error('Failed to load filter.html:', err);
+      logError('Failed to load filter.html.', err);
     });
 
     filterWindow.once('ready-to-show', () => {
       try {
         filterWindow.showInactive();
       } catch (error) {
-        console.error('Failed to show filter window:', error);
+        logError('Failed to show filter window.', error);
       }
     });
 
@@ -391,7 +448,7 @@ function createFilterWindowForDisplay(display) {
 
     return filterWindow;
   } catch (error) {
-    console.error('Failed to create filter window:', error);
+    logError('Failed to create filter window.', error);
     return null;
   }
 }
@@ -418,7 +475,7 @@ function showLauncherWindow() {
     }
     return true;
   } catch (error) {
-    console.error('Failed to show launcher window:', error);
+    logError('Failed to show launcher window.', error);
     return false;
   }
 }
@@ -432,7 +489,7 @@ function hideLauncherWindow() {
     mainWindow.hide();
     return true;
   } catch (error) {
-    console.error('Failed to hide launcher window:', error);
+    logError('Failed to hide launcher window.', error);
     return false;
   }
 }
@@ -465,7 +522,7 @@ function showPrivacyFilter() {
     isFilterVisible = filterWindows.length > 0;
     return isFilterVisible;
   } catch (error) {
-    console.error('Failed to show privacy filter:', error);
+    logError('Failed to show privacy filter.', error);
     isFilterVisible = false;
     filterWindows = [];
     return false;
@@ -482,7 +539,7 @@ function hidePrivacyFilter() {
         win.close();
       }
     } catch (error) {
-      console.error('Failed to close filter window:', error);
+      logWarn('Failed to close filter window.', error);
     }
   }
 
@@ -560,7 +617,7 @@ if (-not $focused) { exit 1 }
   });
 
   focusProcess.on('error', (error) => {
-    console.warn('Focus helper failed to start:', error);
+    logWarn('Focus helper failed to start.', error);
   });
 }
 
@@ -589,11 +646,8 @@ function launchApp(appPath) {
             resolve({ ok: true });
           })
           .catch((error) => {
-            console.error('Failed to launch shortcut via shell.openPath:', error);
-            resolve({
-              ok: false,
-              error: error instanceof Error ? error.message : String(error)
-            });
+            logError('Failed to launch shortcut via shell.openPath.', error);
+            resolve(buildFailure('ショートカットの起動に失敗しました。', error));
           });
         return;
       }
@@ -616,11 +670,8 @@ function launchApp(appPath) {
         };
 
         child.once('error', (error) => {
-          console.error('Failed to launch macOS app bundle:', error);
-          finish({
-            ok: false,
-            error: error instanceof Error ? error.message : String(error)
-          });
+          logError('Failed to launch macOS app bundle.', error);
+          finish(buildFailure('アプリを起動できませんでした。', error));
         });
 
         child.once('spawn', () => {
@@ -648,11 +699,8 @@ function launchApp(appPath) {
       };
 
       child.once('error', (error) => {
-        console.error('Failed to launch app:', error);
-        finish({
-          ok: false,
-          error: error instanceof Error ? error.message : String(error)
-        });
+        logError('Failed to launch app.', error);
+        finish(buildFailure('アプリを起動できませんでした。', error));
       });
 
       child.once('spawn', () => {
@@ -661,11 +709,8 @@ function launchApp(appPath) {
         finish({ ok: true });
       });
     } catch (error) {
-      console.error('Failed to launch app:', error);
-      resolve({
-        ok: false,
-        error: error instanceof Error ? error.message : String(error)
-      });
+      logError('Failed to launch app.', error);
+      resolve(buildFailure('アプリを起動できませんでした。', error));
     }
   });
 }
@@ -685,10 +730,8 @@ async function searchWeb(query) {
     await shell.openExternal(targetUrl);
     return { ok: true, url: targetUrl };
   } catch (error) {
-    return {
-      ok: false,
-      error: error instanceof Error ? error.message : String(error)
-    };
+    logError('Failed to open web search URL.', error);
+    return buildFailure('Web検索を開けませんでした。', error);
   }
 }
 
@@ -703,7 +746,7 @@ function registerLauncherShortcuts() {
       toggleLauncherWindow();
     });
     if (!ok) {
-      console.warn(`Failed to register global shortcut: ${accelerator}`);
+      logWarn(`Failed to register global shortcut: ${accelerator}`);
     }
   }
 
@@ -716,7 +759,7 @@ function registerLauncherShortcuts() {
     notifyFilterStateChanged();
   });
   if (!escape) {
-    console.warn('Failed to register global shortcut: Escape');
+    logWarn('Failed to register global shortcut: Escape');
   }
 }
 
@@ -745,7 +788,7 @@ function getTrayIcon() {
         iconCandidates.push(path.join(buildDir, entry));
       }
     } catch (error) {
-      console.warn('Failed to inspect build directory for tray icons:', buildDir, error);
+      logWarn(`Failed to inspect build directory for tray icons: ${buildDir}`, error);
     }
   }
 
@@ -757,15 +800,15 @@ function getTrayIcon() {
 
       const image = nativeImage.createFromPath(iconPath).resize({ width: 16, height: 16 });
       if (!image.isEmpty()) {
-        console.log('Tray icon loaded from:', iconPath);
+        logDebug(`Tray icon loaded from: ${iconPath}`);
         return image;
       }
     } catch (error) {
-      console.warn('Failed to load tray icon candidate:', iconPath, error);
+      logWarn(`Failed to load tray icon candidate: ${iconPath}`, error);
     }
   }
 
-  console.warn('No tray icon file could be loaded. Falling back to executable icon.');
+  logWarn('No tray icon file could be loaded. Falling back to executable icon.');
   const exeIcon = nativeImage.createFromPath(process.execPath);
   if (!exeIcon.isEmpty()) {
     return exeIcon.resize({ width: 16, height: 16 });
@@ -810,7 +853,7 @@ function createTray() {
       toggleLauncherWindow();
     });
   } catch (error) {
-    console.warn('Tray initialization failed. App will continue without tray.', error);
+    logWarn('Tray initialization failed. App will continue without tray.', error);
     tray = null;
   }
 }
@@ -888,7 +931,7 @@ function setupDisplayChangeHandlers() {
       showPrivacyFilter();
       notifyFilterStateChanged();
     } catch (error) {
-      console.error('Failed to refresh filter on display change:', error);
+      logError('Failed to refresh filter on display change.', error);
     }
   };
 
